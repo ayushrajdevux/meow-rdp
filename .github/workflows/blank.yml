@@ -1,0 +1,61 @@
+name: RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    runs-on: windows-latest
+    timeout-minutes: 120   # safer limit
+
+    steps:
+      - name: Enable RDP
+        shell: powershell
+        run: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Restart-Service TermService -Force
+
+      - name: Create User
+        shell: powershell
+        run: |
+          $username = "ayush"
+          $password = "ayushrajdev999"
+
+          if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
+              $secure = ConvertTo-SecureString $password -AsPlainText -Force
+              New-LocalUser -Name $username -Password $secure
+              Add-LocalGroupMember -Group "Administrators" -Member $username
+              Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+          }
+
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi -OutFile ts.msi
+          Start-Process msiexec.exe -ArgumentList "/i ts.msi /quiet /norestart" -Wait
+
+      - name: Start Tailscale
+        shell: powershell
+        run: |
+          $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
+
+          & $ts up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}"
+
+          Start-Sleep 10
+          $ip = & $ts ip -4
+
+          echo "IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Show Info
+        shell: powershell
+        run: |
+          Write-Host "RDP READY"
+          Write-Host "IP: $env:IP"
+          Write-Host "User: ayush"
+          Write-Host "Pass: ayushrajdev999"
+
+      - name: Wait (safe short session)
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 5400   # ~90 minutes
