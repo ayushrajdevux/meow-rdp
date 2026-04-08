@@ -1,4 +1,4 @@
-name: RDP
+name: RDP2
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         shell: powershell
         run: |
           $username = "ayush"
-          $password = "ayushrajdev999"
+          $password = "@Ayushrajdev9990"
 
           if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
               $secure = ConvertTo-SecureString $password -AsPlainText -Force
