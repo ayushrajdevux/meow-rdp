@@ -1,4 +1,4 @@
-name: RDP2
+name: RDP
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   secure-rdp:
     runs-on: windows-latest
-    timeout-minutes: 120   # safer limit
+    timeout-minutes: 120
 
     steps:
       - name: Enable RDP
@@ -16,18 +16,27 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Restart-Service TermService -Force
 
-      - name: Create User
+      - name: Create User (Auto Password)
         shell: powershell
         run: |
           $username = "ayush"
-          $password = "@Ayushrajdev9990"
 
-          if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
-              $secure = ConvertTo-SecureString $password -AsPlainText -Force
-              New-LocalUser -Name $username -Password $secure
-              Add-LocalGroupMember -Group "Administrators" -Member $username
-              Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+          # Generate strong password (ALWAYS valid)
+          $random = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 8 | % {[char]$_})
+          $password = "A@" + $random + "9!"   # ensures uppercase, lowercase, number, special
+
+          # Remove user if already exists (prevents error)
+          if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
+              Remove-LocalUser -Name $username
           }
+
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name $username -Password $secure
+          Add-LocalGroupMember -Group "Administrators" -Member $username
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+
+          echo "RDP_USER=$username" >> $env:GITHUB_ENV
+          echo "RDP_PASS=$password" >> $env:GITHUB_ENV
 
       - name: Install Tailscale
         shell: powershell
@@ -47,15 +56,16 @@ jobs:
 
           echo "IP=$ip" >> $env:GITHUB_ENV
 
-      - name: Show Info
+      - name: Show RDP Info
         shell: powershell
         run: |
-          Write-Host "RDP READY"
+          Write-Host "===== RDP READY ====="
           Write-Host "IP: $env:IP"
-          Write-Host "User: ayush"
-          Write-Host "Pass: ayushrajdev999"
+          Write-Host "User: $env:RDP_USER"
+          Write-Host "Password: $env:RDP_PASS"
+          Write-Host "====================="
 
-      - name: Wait (safe short session)
+      - name: Wait Session
         shell: powershell
         run: |
-          Start-Sleep -Seconds 5400   # ~90 minutes
+          Start-Sleep -Seconds 5400
